@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <Description>Jaeger exporter for OpenTelemetry</Description>
+    <PackageTags>$(PackageTags);Jaeger;distributed-tracing</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenTelemetry.Abstractions\OpenTelemetry.Abstractions.csproj" />
+    <PackageReference Include="Jaeger.Thrift" Version="0.3.2" />
+  </ItemGroup>
+</Project>
