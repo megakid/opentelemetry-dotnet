@@ -23,7 +23,6 @@ namespace OpenTelemetry.Exporter.Jaeger
     /// </summary>
     public sealed class JaegerTraceExporterOptions
     {
-
         public const int DefaultMaxQueueSize = 100;
         public static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromSeconds(1);
 

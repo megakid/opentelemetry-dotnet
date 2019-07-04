@@ -14,10 +14,10 @@
 // limitations under the License.
 // </copyright>
 
-using OpenTelemetry.Trace.Export;
-
 namespace OpenTelemetry.Exporter.Jaeger
 {
+    using OpenTelemetry.Trace.Export;
+
     /// <summary>
     /// Exporter of Open Census traces to Jaeger.
     /// </summary>

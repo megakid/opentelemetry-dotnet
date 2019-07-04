@@ -1,33 +1,50 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Threading;
-using System.Threading.Tasks;
-using OpenTelemetry.Exporter.Jaeger.Jaeger.Senders;
-using OpenTelemetry.Trace;
+﻿// <copyright file="RemoteReporter.cs" company="OpenTelemetry Authors">
+// Copyright 2018 (c) The Jaeger Authors.
+// Copyright 2018 (c) Chatham Financial Corp.
+// Copyright 2019, OpenTelemetry Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// </copyright>
 
 namespace OpenTelemetry.Exporter.Jaeger
 {
+    using System;
+    using System.Collections.Concurrent;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using OpenTelemetry.Exporter.Jaeger.Jaeger.Senders;
+    using OpenTelemetry.Trace;
     /// <summary>
     /// <see cref="RemoteReporter"/> buffers spans in memory and sends them out of process using <see cref="ISender"/>.
     /// </summary>
     internal class RemoteReporter : IReporter
     {
-        private readonly BlockingCollection<ICommand> _commandQueue;
-        private readonly Task _queueProcessorTask;
-        private readonly TimeSpan _flushInterval;
-        private readonly Task _flushTask;
-        private readonly ISender _sender;
+        private readonly BlockingCollection<ICommand> commandQueue;
+        private readonly Task queueProcessorTask;
+        private readonly TimeSpan flushInterval;
+        private readonly Task flushTask;
+        private readonly ISender sender;
 
         internal RemoteReporter(ISender sender, TimeSpan flushInterval, int maxQueueSize)
         {
-            _sender = sender;
-            _commandQueue = new BlockingCollection<ICommand>(maxQueueSize);
+            this.sender = sender;
+            this.commandQueue = new BlockingCollection<ICommand>(maxQueueSize);
 
             // start a thread to append spans
-            _queueProcessorTask = Task.Factory.StartNew(ProcessQueueLoop, TaskCreationOptions.LongRunning);
+            this.queueProcessorTask = Task.Factory.StartNew(this.ProcessQueueLoop, TaskCreationOptions.LongRunning);
 
-            _flushInterval = flushInterval;
-            _flushTask = Task.Factory.StartNew(FlushLoop, TaskCreationOptions.LongRunning);
+            this.flushInterval = flushInterval;
+            this.flushTask = Task.Factory.StartNew(this.FlushLoop, TaskCreationOptions.LongRunning);
         }
 
         public void Report(SpanData span)
@@ -36,7 +53,7 @@ namespace OpenTelemetry.Exporter.Jaeger
             try
             {
                 // It's better to drop spans, than to block here
-                added = _commandQueue.TryAdd(new AppendCommand(this, span));
+                added = this.commandQueue.TryAdd(new AppendCommand(this, span));
             }
             catch (InvalidOperationException)
             {
@@ -49,7 +66,7 @@ namespace OpenTelemetry.Exporter.Jaeger
         {
             // Note: Java creates a CloseCommand but we have CompleteAdding() in C# so we don't need the command.
             // (This also stops the FlushLoop)
-            _commandQueue.CompleteAdding();
+            this.commandQueue.CompleteAdding();
 
             try
             {
@@ -60,7 +77,7 @@ namespace OpenTelemetry.Exporter.Jaeger
                     new CancellationTokenSource(10000).Token);
                 var cancellationTask = Task.Delay(Timeout.Infinite, cts.Token);
 
-                await Task.WhenAny(_queueProcessorTask, cancellationTask);
+                await Task.WhenAny(this.queueProcessorTask, cancellationTask);
             }
             catch (OperationCanceledException ex)
             {
@@ -70,7 +87,7 @@ namespace OpenTelemetry.Exporter.Jaeger
             {
                 try
                 {
-                    int n = await _sender.CloseAsync(cancellationToken).ConfigureAwait(false);
+                    int n = await this.sender.CloseAsync(cancellationToken).ConfigureAwait(false);
                     //_metrics.ReporterSuccess.Inc(n);
                 }
                 catch (SenderException ex)
@@ -89,7 +106,7 @@ namespace OpenTelemetry.Exporter.Jaeger
             {
                 // We can safely drop FlushCommand when the queue is full - sender should take care of flushing
                 // in such case
-                _commandQueue.TryAdd(new FlushCommand(this));
+                this.commandQueue.TryAdd(new FlushCommand(this));
             }
             catch (InvalidOperationException)
             {
@@ -102,16 +119,16 @@ namespace OpenTelemetry.Exporter.Jaeger
             // First flush should happen later so we start with the delay
             do
             {
-                await Task.Delay(_flushInterval).ConfigureAwait(false);
-                Flush();
+                await Task.Delay(this.flushInterval).ConfigureAwait(false);
+                this.Flush();
             }
-            while (!_commandQueue.IsAddingCompleted);
+            while (!this.commandQueue.IsAddingCompleted);
         }
 
         private async Task ProcessQueueLoop()
         {
             // This blocks until a command is available or IsCompleted=true
-            foreach (ICommand command in _commandQueue.GetConsumingEnumerable())
+            foreach (ICommand command in this.commandQueue.GetConsumingEnumerable())
             {
                 try
                 {
@@ -131,7 +148,7 @@ namespace OpenTelemetry.Exporter.Jaeger
 
         public override string ToString()
         {
-            return $"{nameof(RemoteReporter)}(Sender={_sender})";
+            return $"{nameof(RemoteReporter)}(Sender={this.sender})";
         }
 
         /*
@@ -147,69 +164,69 @@ namespace OpenTelemetry.Exporter.Jaeger
 
         class AppendCommand : ICommand
         {
-            private readonly RemoteReporter _reporter;
-            private readonly SpanData _span;
+            private readonly RemoteReporter reporter;
+            private readonly SpanData span;
 
             public AppendCommand(RemoteReporter reporter, SpanData span)
             {
-                _reporter = reporter;
-                _span = span;
+                this.reporter = reporter;
+                this.span = span;
             }
 
             public Task ExecuteAsync()
             {
-                return _reporter._sender.AppendAsync(_span, CancellationToken.None);
+                return this.reporter.sender.AppendAsync(this.span, CancellationToken.None);
             }
         }
 
         class FlushCommand : ICommand
         {
-            private readonly RemoteReporter _reporter;
+            private readonly RemoteReporter reporter;
 
             public FlushCommand(RemoteReporter reporter)
             {
-                _reporter = reporter;
+                this.reporter = reporter;
             }
 
             public async Task ExecuteAsync()
             {
-                int n = await _reporter._sender.FlushAsync(CancellationToken.None).ConfigureAwait(false);
+                int n = await this.reporter.sender.FlushAsync(CancellationToken.None).ConfigureAwait(false);
                 //_reporter._metrics.ReporterSuccess.Inc(n);
             }
         }
 
         public sealed class Builder
         {
-            private ISender _sender;
+            private ISender sender;
             //private IMetrics _metrics;
             //private ILoggerFactory _loggerFactory;
-            private JaegerTraceExporterOptions _options;
-            private readonly string _processName;
+            private JaegerTraceExporterOptions options;
+            private readonly string processName;
 
             public Builder(string processName)
             {
-                this._processName = processName;
+                this.processName = processName;
             }
 
             public Builder(JaegerTraceExporterOptions options)
                 : this(options.ServiceName)
             {
-                this._options = options;
+                this.options = options;
             }
 
             public RemoteReporter Build()
             {
-                switch (this._options.Transport)
+                switch (this.options.Transport)
                 {
                     case AgentJaegerTraceTransportOptions agentOptions:
-                        _sender = new UdpSender(this._options.ServiceName, agentOptions);
+                        this.sender = new UdpSender(this.options.ServiceName, agentOptions);
                         break;
                     case HttpJaegerTraceTransportOptions httpOptions:
-                        _sender = new HttpSender(this._options.ServiceName, httpOptions);
+                        this.sender = new HttpSender(this.options.ServiceName, httpOptions);
                         break;
                 }
 
-                return new RemoteReporter(_sender, _options.FlushInterval, _options.MaxQueueSize);//, _metrics, _loggerFactory);
+                return new RemoteReporter(this.sender, this.options.FlushInterval, this.options.MaxQueueSize);//, _metrics, _loggerFactory);
             }
         }
     }
