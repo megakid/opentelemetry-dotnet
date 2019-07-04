@@ -1,12 +1,12 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using OpenTelemetry.Exporter.Jaeger.Implementation;
+using OpenTelemetry.Trace;
 
 namespace OpenTelemetry.Exporter.Jaeger
 {
     internal interface ISender
     {
-        Task<int> AppendAsync(JaegerSpan span, CancellationToken cancellationToken);
+        Task<int> AppendAsync(SpanData span, CancellationToken cancellationToken);
 
         Task<int> FlushAsync(CancellationToken cancellationToken);
 

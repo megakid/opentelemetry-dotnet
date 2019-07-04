@@ -23,6 +23,10 @@ namespace OpenTelemetry.Exporter.Jaeger
     /// </summary>
     public sealed class JaegerTraceExporterOptions
     {
+
+        public const int DefaultMaxQueueSize = 100;
+        public static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromSeconds(1);
+
         /// <summary>
         /// Gets or sets the name of the service reporting telemetry.
         /// </summary>
@@ -41,11 +45,11 @@ namespace OpenTelemetry.Exporter.Jaeger
         /// <summary>
         /// Gets or sets the flush interval for the jaeger spans.
         /// </summary>
-        public TimeSpan FlushInterval { get; set; } = TimeSpan.FromSeconds(10);
+        public TimeSpan FlushInterval { get; set; } = DefaultFlushInterval;
 
         /// <summary>
         /// Gets or sets the max queue size of the internal queue of spans yet to be flushed.
         /// </summary>
-        public int MaxQueueSize { get; set; } = 100;
+        public int MaxQueueSize { get; set; } = DefaultMaxQueueSize;
     }
 }

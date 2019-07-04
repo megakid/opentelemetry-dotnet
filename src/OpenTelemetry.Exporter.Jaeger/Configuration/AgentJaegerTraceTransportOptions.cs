@@ -20,17 +20,20 @@ namespace OpenTelemetry.Exporter.Jaeger
 
     public sealed class AgentJaegerTraceTransportOptions : JaegerTraceTransportOptions
     {
+        public const string DefaultAgentUdpHost = "localhost";
+        public const int DefaultAgentUdpCompactPort = 6831;
+
         /// <summary>
         /// Gets or sets the Jaeger agent UDP endpoint address.
         /// Defaults to "localhost".
         /// </summary>
-        public string Host { get; set; } = "localhost";
+        public string Host { get; set; } = DefaultAgentUdpHost;
 
         /// <summary>
         /// Gets or sets the UDP port used for transmitting Jaeger spans to the Jaeger agent.
         /// Defaults to 6831 - the port used for accepting jaeger.thrift messages
         /// https://www.jaegertracing.io/docs/getting-started/.
         /// </summary>
-        public int Port { get; set; } = 6831;
+        public int Port { get; set; } = DefaultAgentUdpCompactPort;
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using OpenTelemetry.Exporter.Jaeger.Implementation;
+using Jaeger.Thrift;
 using OpenTelemetry.Trace;
 
 namespace OpenTelemetry.Exporter.Jaeger
@@ -12,7 +12,7 @@ namespace OpenTelemetry.Exporter.Jaeger
     //     is Jaeger.Reporters.RemoteReporter that sends spans out of process. ///
     internal interface IReporter
     {
-        void Report(JaegerSpan span);
+        void Report(SpanData span);
 
         //
         // Summary:
@@ -25,3 +25,6 @@ namespace OpenTelemetry.Exporter.Jaeger
         Task CloseAsync(CancellationToken cancellationToken);
     }
 }
+
+
+

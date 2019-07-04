@@ -2,12 +2,7 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
-using Jaeger.Exceptions;
-using Jaeger.Metrics;
-using Jaeger.Senders;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using OpenTelemetry.Exporter.Jaeger.Implementation;
+using OpenTelemetry.Exporter.Jaeger.Jaeger.Senders;
 using OpenTelemetry.Trace;
 
 namespace OpenTelemetry.Exporter.Jaeger
@@ -17,23 +12,15 @@ namespace OpenTelemetry.Exporter.Jaeger
     /// </summary>
     internal class RemoteReporter : IReporter
     {
-        public const int DefaultMaxQueueSize = 100;
-        public static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromSeconds(1);
-
         private readonly BlockingCollection<ICommand> _commandQueue;
         private readonly Task _queueProcessorTask;
         private readonly TimeSpan _flushInterval;
         private readonly Task _flushTask;
         private readonly ISender _sender;
-        private readonly IMetrics _metrics;
-        private readonly ILogger _logger;
 
-        internal RemoteReporter(ISender sender, TimeSpan flushInterval, int maxQueueSize,
-            IMetrics metrics, ILoggerFactory loggerFactory)
+        internal RemoteReporter(ISender sender, TimeSpan flushInterval, int maxQueueSize)
         {
             _sender = sender;
-            _metrics = metrics;
-            _logger = loggerFactory.CreateLogger<RemoteReporter>();
             _commandQueue = new BlockingCollection<ICommand>(maxQueueSize);
 
             // start a thread to append spans
@@ -43,7 +30,7 @@ namespace OpenTelemetry.Exporter.Jaeger
             _flushTask = Task.Factory.StartNew(FlushLoop, TaskCreationOptions.LongRunning);
         }
 
-        public void Report(JaegerSpan span)
+        public void Report(SpanData span)
         {
             bool added = false;
             try
@@ -56,10 +43,6 @@ namespace OpenTelemetry.Exporter.Jaeger
                 // The queue has been marked as IsAddingCompleted -> no-op.
             }
 
-            if (!added)
-            {
-                _metrics.ReporterDropped.Inc(1);
-            }
         }
 
         public async Task CloseAsync(CancellationToken cancellationToken)
@@ -81,18 +64,18 @@ namespace OpenTelemetry.Exporter.Jaeger
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogError(ex, "Dispose interrupted");
+                //_logger.LogError(ex, "Dispose interrupted");
             }
             finally
             {
                 try
                 {
                     int n = await _sender.CloseAsync(cancellationToken).ConfigureAwait(false);
-                    _metrics.ReporterSuccess.Inc(n);
+                    //_metrics.ReporterSuccess.Inc(n);
                 }
                 catch (SenderException ex)
                 {
-                    _metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
+                    //_metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
                 }
             }
         }
@@ -100,7 +83,7 @@ namespace OpenTelemetry.Exporter.Jaeger
         internal void Flush()
         {
             // to reduce the number of updateGauge stats, we only emit queue length on flush
-            _metrics.ReporterQueueLength.Update(_commandQueue.Count);
+            //_metrics.ReporterQueueLength.Update(_commandQueue.Count);
 
             try
             {
@@ -136,11 +119,11 @@ namespace OpenTelemetry.Exporter.Jaeger
                 }
                 catch (SenderException ex)
                 {
-                    _metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
+                    //_metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "QueueProcessor error");
+                    //_logger.LogError(ex, "QueueProcessor error");
                     // Do nothing, and try again on next command.
                 }
             }
@@ -165,9 +148,9 @@ namespace OpenTelemetry.Exporter.Jaeger
         class AppendCommand : ICommand
         {
             private readonly RemoteReporter _reporter;
-            private readonly JaegerSpan _span;
+            private readonly SpanData _span;
 
-            public AppendCommand(RemoteReporter reporter, JaegerSpan span)
+            public AppendCommand(RemoteReporter reporter, SpanData span)
             {
                 _reporter = reporter;
                 _span = span;
@@ -191,63 +174,42 @@ namespace OpenTelemetry.Exporter.Jaeger
             public async Task ExecuteAsync()
             {
                 int n = await _reporter._sender.FlushAsync(CancellationToken.None).ConfigureAwait(false);
-                _reporter._metrics.ReporterSuccess.Inc(n);
+                //_reporter._metrics.ReporterSuccess.Inc(n);
             }
         }
 
         public sealed class Builder
         {
             private ISender _sender;
-            private IMetrics _metrics;
-            private ILoggerFactory _loggerFactory;
-            private TimeSpan _flushInterval = DefaultFlushInterval;
-            private int _maxQueueSize = DefaultMaxQueueSize;
+            //private IMetrics _metrics;
+            //private ILoggerFactory _loggerFactory;
+            private JaegerTraceExporterOptions _options;
+            private readonly string _processName;
 
-            public Builder WithFlushInterval(TimeSpan flushInterval)
+            public Builder(string processName)
             {
-                _flushInterval = flushInterval;
-                return this;
+                this._processName = processName;
             }
 
-            public Builder WithMaxQueueSize(int maxQueueSize)
+            public Builder(JaegerTraceExporterOptions options)
+                : this(options.ServiceName)
             {
-                _maxQueueSize = maxQueueSize;
-                return this;
-            }
-
-            public Builder WithMetrics(IMetrics metrics)
-            {
-                _metrics = metrics;
-                return this;
-            }
-
-            public Builder WithSender(ISender sender)
-            {
-                _sender = sender;
-                return this;
-            }
-
-            public Builder WithLoggerFactory(ILoggerFactory loggerFactory)
-            {
-                _loggerFactory = loggerFactory;
-                return this;
+                this._options = options;
             }
 
             public RemoteReporter Build()
             {
-                if (_loggerFactory == null)
+                switch (this._options.Transport)
                 {
-                    _loggerFactory = NullLoggerFactory.Instance;
+                    case AgentJaegerTraceTransportOptions agentOptions:
+                        _sender = new UdpSender(this._options.ServiceName, agentOptions);
+                        break;
+                    case HttpJaegerTraceTransportOptions httpOptions:
+                        _sender = new HttpSender(this._options.ServiceName, httpOptions);
+                        break;
                 }
-                if (_sender == null)
-                {
-                    _sender = new UdpSender();
-                }
-                if (_metrics == null)
-                {
-                    _metrics = new MetricsImpl(NoopMetricsFactory.Instance);
-                }
-                return new RemoteReporter(_sender, _flushInterval, _maxQueueSize, _metrics, _loggerFactory);
+
+                return new RemoteReporter(_sender, _options.FlushInterval, _options.MaxQueueSize);//, _metrics, _loggerFactory);
             }
         }
     }

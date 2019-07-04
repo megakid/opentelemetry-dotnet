@@ -14,17 +14,10 @@
 // limitations under the License.
 // </copyright>
 
+using OpenTelemetry.Trace.Export;
+
 namespace OpenTelemetry.Exporter.Jaeger
 {
-    using System.Net.Http;
-    using global::Jaeger.Metrics;
-    using global::Jaeger.Reporters;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Logging.Abstractions;
-    using OpenTelemetry.Exporter.Jaeger.Implementation;
-    using OpenTelemetry.Trace.Export;
-    using static global::Jaeger.Configuration;
-
     /// <summary>
     /// Exporter of Open Census traces to Jaeger.
     /// </summary>
@@ -67,7 +60,7 @@ namespace OpenTelemetry.Exporter.Jaeger
 
                 var reporter = this.CreateJaegerReporter();
 
-                this.handler = new TraceExporterHandler(this.options, reporter);
+                this.handler = new TraceExporterHandler(reporter);
 
                 this.exportComponent.SpanExporter.RegisterHandler(ExporterName, this.handler);
             }
@@ -75,40 +68,8 @@ namespace OpenTelemetry.Exporter.Jaeger
 
         private IReporter CreateJaegerReporter()
         {
-            var senderConfig = new SenderConfiguration(NullLoggerFactory.Instance);
-
-            switch (this.options.Transport)
-            {
-                case AgentJaegerTraceTransportOptions agentOptions:
-
-                    senderConfig = senderConfig
-                        .WithAgentHost(agentOptions.Host)
-                        .WithAgentPort(agentOptions.Port);
-
-                    break;
-                case HttpJaegerTraceTransportOptions httpOptions:
-
-                    senderConfig = senderConfig
-                        .WithEndpoint(httpOptions.HttpEndpoint);
-
-                    if (httpOptions.BearerToken != null)
-                    {
-                        senderConfig = senderConfig.WithAuthToken(httpOptions.BearerToken);
-                    }
-                    else
-                    {
-                        senderConfig = senderConfig
-                            .WithAuthUsername(httpOptions.BasicUser)
-                            .WithAuthPassword(httpOptions.BasicPassword);
-                    }
-
-                    break;
-            }
-
-            var reporter = new RemoteReporter.Builder()
-                .WithFlushInterval(this.options.FlushInterval)
-                .WithMaxQueueSize(this.options.MaxQueueSize)
-                .WithSender(senderConfig.GetSender());
+            var reporter = new RemoteReporter.Builder(this.options)
+                .Build();
 
             return reporter;
         }
@@ -127,6 +88,7 @@ namespace OpenTelemetry.Exporter.Jaeger
 
                 this.exportComponent.SpanExporter.UnregisterHandler(ExporterName);
 
+                this.handler.StopAsync().GetAwaiter().GetResult();
                 this.handler = null;
             }
         }

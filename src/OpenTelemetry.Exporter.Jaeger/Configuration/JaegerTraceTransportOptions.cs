@@ -18,5 +18,9 @@ namespace OpenTelemetry.Exporter.Jaeger
 {
     public abstract class JaegerTraceTransportOptions
     {
+        /// <summary>
+        /// Gets or sets the max packet size measured in bytes.
+        /// </summary>
+        public int MaxPacketSizeBytes { get; set; }
     }
 }
