@@ -16,22 +16,24 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation
 {
     using System;
 
     public class SenderException : Exception
     {
+        public SenderException(string message, int droppedSpans)
+            : this(message, null, droppedSpans)
+        {
+            this.DroppedSpanCount = droppedSpans;
+        }
+
+        public SenderException(string message, Exception innerException, int droppedSpans)
+            : base(message, innerException)
+        {
+            this.DroppedSpanCount = droppedSpans;
+        }
+
         public int DroppedSpanCount { get; }
-
-        public SenderException(string message, int droppedSpans) : this(message, null, droppedSpans)
-        {
-            this.DroppedSpanCount = droppedSpans;
-        }
-
-        public SenderException(string message, Exception innerException, int droppedSpans) : base(message, innerException)
-        {
-            this.DroppedSpanCount = droppedSpans;
-        }
     }
 }

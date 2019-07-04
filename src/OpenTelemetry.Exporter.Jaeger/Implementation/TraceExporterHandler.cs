@@ -14,11 +14,12 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation
 {
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
+    using OpenTelemetry.Exporter.Jaeger.Implementation.Reporter;
     using OpenTelemetry.Trace;
     using OpenTelemetry.Trace.Export;
 
@@ -34,7 +35,9 @@ namespace OpenTelemetry.Exporter.Jaeger
         public Task ExportAsync(IEnumerable<SpanData> spanDataList)
         {
             foreach (var span in spanDataList)
+            {
                 this.reporter.Report(span);
+            }
 
             return Task.CompletedTask;
         }

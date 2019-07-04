@@ -16,17 +16,16 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Sender
 {
     using System;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Jaeger.Thrift;
-    using Jaeger.Thrift.Agent;
-    using Jaeger.Thrift.Senders;
-    using Jaeger.Thrift.Senders.Internal;
-    using OpenTelemetry.Exporter.Jaeger.Jaeger.Senders;
+    using global::Jaeger.Thrift;
+    using global::Jaeger.Thrift.Agent;
+    using global::Jaeger.Thrift.Senders.Internal;
+    using OpenTelemetry.Exporter.Jaeger.Configuration;
 
     /// <inheritdoc />
     /// <summary>
@@ -36,28 +35,15 @@ namespace OpenTelemetry.Exporter.Jaeger
     /// </summary>
     internal class UdpSender : ThriftSender
     {
-
         private readonly Agent.Client agentClient;
+
         private readonly ThriftUdpClientTransport udpTransport;
 
-        public UdpSender(string processName, AgentJaegerTraceTransportOptions options) 
+        public UdpSender(string processName, AgentJaegerTraceTransportOptions options)
             : base(processName, ProtocolType.Compact, options.MaxPacketSizeBytes)
         {
             this.udpTransport = new ThriftUdpClientTransport(options.Host, options.Port);
             this.agentClient = new Agent.Client(this.ProtocolFactory.GetProtocol(this.udpTransport));
-        }
-
-        protected override async Task SendAsync(Process process, List<Span> spans, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var batch = new Batch(process, spans);
-                await this.agentClient.emitBatchAsync(batch, cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                throw new SenderException($"Could not send {spans.Count} spans", ex, spans.Count);
-            }
         }
 
         public override async Task<int> CloseAsync(CancellationToken cancellationToken)
@@ -75,6 +61,19 @@ namespace OpenTelemetry.Exporter.Jaeger
         public override string ToString()
         {
             return $"{nameof(UdpSender)}(UdpTransport={this.udpTransport})";
+        }
+
+        protected override async Task SendAsync(Process process, List<Span> spans, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var batch = new Batch(process, spans);
+                await this.agentClient.emitBatchAsync(batch, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new SenderException($"Could not send {spans.Count} spans", ex, spans.Count);
+            }
         }
     }
 }

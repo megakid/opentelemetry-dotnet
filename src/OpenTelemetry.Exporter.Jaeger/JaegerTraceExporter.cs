@@ -16,6 +16,9 @@
 
 namespace OpenTelemetry.Exporter.Jaeger
 {
+    using OpenTelemetry.Exporter.Jaeger.Configuration;
+    using OpenTelemetry.Exporter.Jaeger.Implementation;
+    using OpenTelemetry.Exporter.Jaeger.Implementation.Reporter;
     using OpenTelemetry.Trace.Export;
 
     /// <summary>
@@ -66,14 +69,6 @@ namespace OpenTelemetry.Exporter.Jaeger
             }
         }
 
-        private IReporter CreateJaegerReporter()
-        {
-            var reporter = new RemoteReporter.Builder(this.options)
-                .Build();
-
-            return reporter;
-        }
-
         /// <summary>
         /// Stop exporter.
         /// </summary>
@@ -91,6 +86,14 @@ namespace OpenTelemetry.Exporter.Jaeger
                 this.handler.StopAsync().GetAwaiter().GetResult();
                 this.handler = null;
             }
+        }
+
+        private IReporter CreateJaegerReporter()
+        {
+            var reporter = new RemoteReporter.Builder(this.options)
+                .Build();
+
+            return reporter;
         }
     }
 }

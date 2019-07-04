@@ -14,14 +14,13 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation
 {
     using System;
     using System.Collections.Generic;
-    using Jaeger.Thrift;
+    using global::Jaeger.Thrift;
     using OpenTelemetry.Trace;
     using OpenTelemetry.Trace.Export;
-
 
     internal static class JaegerThriftSpanConverter
     {
@@ -51,7 +50,6 @@ namespace OpenTelemetry.Exporter.Jaeger
 
             return thriftSpan;
         }
-
 
         public static List<Tag> BuildTags(IAttributes attributes)
         {
@@ -94,7 +92,6 @@ namespace OpenTelemetry.Exporter.Jaeger
 
             return (BitConverter.ToInt64(traceIdBytes, 0),
                     BitConverter.ToInt64(traceIdBytes, 8));
-
         }
 
         private static long ToLong(SpanId spanId)

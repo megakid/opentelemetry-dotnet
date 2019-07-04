@@ -16,7 +16,7 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Sender
 {
     using System;
     using System.Collections.Generic;
@@ -70,6 +70,7 @@ namespace OpenTelemetry.Exporter.Jaeger
                 {
                     return 0;
                 }
+
                 return await this.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -87,6 +88,41 @@ namespace OpenTelemetry.Exporter.Jaeger
             this.spanBuffer.Add(thriftSpan);
             this.byteBufferSize = this.processBytesSize + spanSize;
             return n;
+        }
+
+        public async Task<int> FlushAsync(CancellationToken cancellationToken)
+        {
+            if (this.spanBuffer.Count == 0)
+            {
+                return 0;
+            }
+
+            int n = this.spanBuffer.Count;
+            try
+            {
+                await this.SendAsync(this.process, this.spanBuffer, cancellationToken).ConfigureAwait(false);
+            }
+            catch (SenderException ex)
+            {
+                throw new SenderException("Failed to flush spans.", ex, n);
+            }
+            finally
+            {
+                this.spanBuffer.Clear();
+                this.byteBufferSize = this.processBytesSize;
+            }
+
+            return n;
+        }
+
+        public virtual Task<int> CloseAsync(CancellationToken cancellationToken)
+        {
+            return this.FlushAsync(cancellationToken);
+        }
+
+        public override string ToString()
+        {
+            return $"{nameof(ThriftSender)}(ProcessBytesSize={this.processBytesSize}, ByteBufferSize={this.byteBufferSize})";
         }
 
         protected int CalculateProcessSize(Process proc)
@@ -114,39 +150,5 @@ namespace OpenTelemetry.Exporter.Jaeger
         }
 
         protected abstract Task SendAsync(Process process, List<Span> spans, CancellationToken cancellationToken);
-
-        public async Task<int> FlushAsync(CancellationToken cancellationToken)
-        {
-            if (this.spanBuffer.Count == 0)
-            {
-                return 0;
-            }
-
-            int n = this.spanBuffer.Count;
-            try
-            {
-                await this.SendAsync(this.process, this.spanBuffer, cancellationToken).ConfigureAwait(false);
-            }
-            catch (SenderException ex)
-            {
-                throw new SenderException("Failed to flush spans.", ex, n);
-            }
-            finally
-            {
-                this.spanBuffer.Clear();
-                this.byteBufferSize = this.processBytesSize;
-            }
-            return n;
-        }
-
-        public virtual Task<int> CloseAsync(CancellationToken cancellationToken)
-        {
-            return this.FlushAsync(cancellationToken);
-        }
-
-        public override string ToString()
-        {
-            return $"{nameof(ThriftSender)}(ProcessBytesSize={this.processBytesSize}, ByteBufferSize={this.byteBufferSize})";
-        }
     }
 }

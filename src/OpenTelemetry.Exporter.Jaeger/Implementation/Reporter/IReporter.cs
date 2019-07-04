@@ -16,14 +16,12 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Reporter
 {
     using System.Threading;
     using System.Threading.Tasks;
-    using Jaeger.Thrift;
     using OpenTelemetry.Trace;
 
-    //
     // Summary:
     //     /// Jaeger.Reporters.IReporter is the interface Jaeger.Tracer uses to report
     //     finished spans to something that /// collects those spans. Default implementation
@@ -32,7 +30,6 @@ namespace OpenTelemetry.Exporter.Jaeger
     {
         void Report(SpanData span);
 
-        //
         // Summary:
         //     /// Release any resources used by the reporter. ///
         //
@@ -43,6 +40,3 @@ namespace OpenTelemetry.Exporter.Jaeger
         Task CloseAsync(CancellationToken cancellationToken);
     }
 }
-
-
-

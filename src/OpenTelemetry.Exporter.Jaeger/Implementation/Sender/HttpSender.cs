@@ -16,7 +16,7 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Sender
 {
     using System;
     using System.Collections.Generic;
@@ -25,6 +25,7 @@ namespace OpenTelemetry.Exporter.Jaeger
     using System.Threading;
     using System.Threading.Tasks;
     using global::Jaeger.Thrift;
+    using OpenTelemetry.Exporter.Jaeger.Configuration;
     using Thrift.Protocols;
     using Thrift.Transports.Client;
     using static global::Jaeger.Thrift.Senders.ThriftSenderBase;
@@ -66,20 +67,6 @@ namespace OpenTelemetry.Exporter.Jaeger
             this.protocol = this.ProtocolFactory.GetProtocol(this.transport);
         }
 
-        protected override async Task SendAsync(Process process, List<Span> spans, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var batch = new Batch(process, spans);
-                await batch.WriteAsync(this.protocol, cancellationToken).ConfigureAwait(false);
-                await this.protocol.Transport.FlushAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                throw new SenderException($"Could not send {spans.Count} spans", ex, spans.Count);
-            }
-        }
-
         public override async Task<int> CloseAsync(CancellationToken cancellationToken)
         {
             try
@@ -97,18 +84,35 @@ namespace OpenTelemetry.Exporter.Jaeger
             return $"{nameof(HttpSender)}";
         }
 
+        protected override async Task SendAsync(Process process, List<Span> spans, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var batch = new Batch(process, spans);
+                await batch.WriteAsync(this.protocol, cancellationToken).ConfigureAwait(false);
+                await this.protocol.Transport.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                throw new SenderException($"Could not send {spans.Count} spans", ex, spans.Count);
+            }
+        }
+
         public sealed class Builder
         {
-            public string ProcessName { get; }
-            internal string Endpoint { get; }
-            internal int MaxPacketSize { get; private set; } = OneMbInBytes;
-            internal AuthenticationHeaderValue AuthenticationHeaderValue { get; private set; }
-
             public Builder(string processName, string endpoint)
             {
                 this.ProcessName = processName;
                 this.Endpoint = endpoint;
             }
+
+            public string ProcessName { get; }
+
+            internal string Endpoint { get; }
+
+            internal int MaxPacketSize { get; private set; } = OneMbInBytes;
+
+            internal AuthenticationHeaderValue AuthenticationHeaderValue { get; private set; }
 
             public Builder WithMaxPacketSize(int maxPacketSizeBytes)
             {

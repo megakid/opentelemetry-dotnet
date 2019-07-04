@@ -14,7 +14,7 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Configuration
 {
     using System;
 
@@ -27,7 +27,7 @@ namespace OpenTelemetry.Exporter.Jaeger
         public string HttpEndpoint { get; set; } = "http://jaeger-collector:14268/api/traces";
 
         /// <summary>
-        /// Gets or sets the token to be used for the 'Bearer' when a HTTP call is made.  If non-null, BasicUser & BasicPassword will be ignored.
+        /// Gets or sets the token to be used for the 'Bearer' when a HTTP call is made.  If non-null, BasicUser and BasicPassword will be ignored.
         /// </summary>
         public string BearerToken { get; set; }
 

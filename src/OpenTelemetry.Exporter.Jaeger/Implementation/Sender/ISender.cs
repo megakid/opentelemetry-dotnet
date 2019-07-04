@@ -16,7 +16,7 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Sender
 {
     using System.Threading;
     using System.Threading.Tasks;

@@ -16,18 +16,20 @@
 // limitations under the License.
 // </copyright>
 
-namespace OpenTelemetry.Exporter.Jaeger
+namespace OpenTelemetry.Exporter.Jaeger.Implementation.Reporter
 {
     using System;
     using System.Collections.Concurrent;
     using System.Threading;
     using System.Threading.Tasks;
-    using OpenTelemetry.Exporter.Jaeger.Jaeger.Senders;
+    using OpenTelemetry.Exporter.Jaeger.Configuration;
+    using OpenTelemetry.Exporter.Jaeger.Implementation.Sender;
     using OpenTelemetry.Trace;
+
     /// <summary>
     /// <see cref="RemoteReporter"/> buffers spans in memory and sends them out of process using <see cref="ISender"/>.
     /// </summary>
-    internal class RemoteReporter : IReporter
+    internal partial class RemoteReporter : IReporter
     {
         private readonly BlockingCollection<ICommand> commandQueue;
         private readonly Task queueProcessorTask;
@@ -59,7 +61,6 @@ namespace OpenTelemetry.Exporter.Jaeger
             {
                 // The queue has been marked as IsAddingCompleted -> no-op.
             }
-
         }
 
         public async Task CloseAsync(CancellationToken cancellationToken)
@@ -81,26 +82,31 @@ namespace OpenTelemetry.Exporter.Jaeger
             }
             catch (OperationCanceledException ex)
             {
-                //_logger.LogError(ex, "Dispose interrupted");
+                // _logger.LogError(ex, "Dispose interrupted");
             }
             finally
             {
                 try
                 {
+                    // _metrics.ReporterSuccess.Inc(n);
                     int n = await this.sender.CloseAsync(cancellationToken).ConfigureAwait(false);
-                    //_metrics.ReporterSuccess.Inc(n);
                 }
                 catch (SenderException ex)
                 {
-                    //_metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
+                    // _metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
                 }
             }
         }
 
-        internal void Flush()
+        public override string ToString()
+        {
+            return $"{nameof(RemoteReporter)}(Sender={this.sender})";
+        }
+
+        private void Flush()
         {
             // to reduce the number of updateGauge stats, we only emit queue length on flush
-            //_metrics.ReporterQueueLength.Update(_commandQueue.Count);
+            // _metrics.ReporterQueueLength.Update(_commandQueue.Count);
 
             try
             {
@@ -136,97 +142,41 @@ namespace OpenTelemetry.Exporter.Jaeger
                 }
                 catch (SenderException ex)
                 {
-                    //_metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
+                    // _metrics.ReporterFailure.Inc(ex.DroppedSpanCount);
                 }
                 catch (Exception ex)
                 {
-                    //_logger.LogError(ex, "QueueProcessor error");
+                    // _logger.LogError(ex, "QueueProcessor error");
                     // Do nothing, and try again on next command.
                 }
             }
         }
 
-        public override string ToString()
-        {
-            return $"{nameof(RemoteReporter)}(Sender={this.sender})";
-        }
-
-        /*
-         * The code below implements the command pattern. This pattern is useful for
-         * situations where multiple threads would need to synchronize on a resource,
-         * but are fine with executing sequentially. The advantage is simplified code where
-         * tasks are put onto a blocking queue and processed sequentially by another thread.
-         */
-        public interface ICommand
-        {
-            Task ExecuteAsync();
-        }
-
-        class AppendCommand : ICommand
-        {
-            private readonly RemoteReporter reporter;
-            private readonly SpanData span;
-
-            public AppendCommand(RemoteReporter reporter, SpanData span)
-            {
-                this.reporter = reporter;
-                this.span = span;
-            }
-
-            public Task ExecuteAsync()
-            {
-                return this.reporter.sender.AppendAsync(this.span, CancellationToken.None);
-            }
-        }
-
-        class FlushCommand : ICommand
-        {
-            private readonly RemoteReporter reporter;
-
-            public FlushCommand(RemoteReporter reporter)
-            {
-                this.reporter = reporter;
-            }
-
-            public async Task ExecuteAsync()
-            {
-                int n = await this.reporter.sender.FlushAsync(CancellationToken.None).ConfigureAwait(false);
-                //_reporter._metrics.ReporterSuccess.Inc(n);
-            }
-        }
-
         public sealed class Builder
         {
-            private ISender sender;
-            //private IMetrics _metrics;
-            //private ILoggerFactory _loggerFactory;
             private JaegerTraceExporterOptions options;
-            private readonly string processName;
-
-            public Builder(string processName)
-            {
-                this.processName = processName;
-            }
 
             public Builder(JaegerTraceExporterOptions options)
-                : this(options.ServiceName)
             {
                 this.options = options;
             }
 
             public RemoteReporter Build()
             {
+                ISender sender;
                 switch (this.options.Transport)
                 {
                     case AgentJaegerTraceTransportOptions agentOptions:
-                        this.sender = new UdpSender(this.options.ServiceName, agentOptions);
+                        sender = new UdpSender(this.options.ServiceName, agentOptions);
                         break;
                     case HttpJaegerTraceTransportOptions httpOptions:
-                        this.sender = new HttpSender(this.options.ServiceName, httpOptions);
+                        sender = new HttpSender(this.options.ServiceName, httpOptions);
                         break;
+                    default:
+                        throw new InvalidOperationException("Unhandled Transport Options type");
                 }
 
-                return new RemoteReporter(this.sender, this.options.FlushInterval, this.options.MaxQueueSize);//, _metrics, _loggerFactory);
+                return new RemoteReporter(sender, this.options.FlushInterval, this.options.MaxQueueSize); // , _metrics, _loggerFactory);
             }
         }
     }
